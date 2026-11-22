@@ -31,9 +31,12 @@ fi
 for f in index.js store.js hostdeps.mjs client.js package.json cordis.patch.yml README.md LICENSE; do
   [ -f "$SRC/$f" ] && cp -f "$SRC/$f" "$DEST/$f"
 done
-mkdir -p "$DEST/assets"
+mkdir -p "$DEST/assets" "$DEST/defaults/templates"
 for f in note.jpg note-engraved.jpg; do
   [ -f "$SRC/assets/$f" ] && cp -f "$SRC/assets/$f" "$DEST/assets/$f"
+done
+for f in "$SRC"/defaults/templates/*.md; do
+  [ -f "$f" ] && cp -f "$f" "$DEST/defaults/templates/"
 done
 echo "已复制到 $DEST"
 

@@ -54,6 +54,16 @@ test('内置四个默认票种，账户不在模板列表里', () => {
   assert.equal(templateOf(CURRENCY_ID), undefined)
 })
 
+test('默认票面来自 defaults/templates 下的真实 md 文件', () => {
+  const dir = new URL('../defaults/templates/', import.meta.url)
+  const files = fs.readdirSync(dir).filter((n) => n.endsWith('.md')).sort()
+  assert.equal(files.length, 4)
+  assert.deepEqual(
+    new Set(DEFAULT_TEMPLATES.map((t) => t.id)),
+    new Set(files.map((n) => n.replace(/\.md$/, ''))),
+  )
+})
+
 test('默认模板里不夹带私有梗', () => {
   const text = JSON.stringify(DEFAULT_TEMPLATES)
   for (const bad of ['虎鲸', '赛博', '本鱼', '老板', '诶嘿', '刷 B 站', 'ASR', '幼儿园']) {
