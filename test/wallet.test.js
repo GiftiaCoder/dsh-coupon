@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 
 import {
   CURRENCY_ID,
+  DEFAULT_TEMPLATES,
   addFunds,
   agentName,
   exchange,
@@ -41,16 +42,27 @@ afterEach(() => {
   }
 })
 
-test('首次运行时只有一个中性示例模板，账户不在模板列表里', () => {
+test('内置四个默认票种，账户不在模板列表里', () => {
   const tpls = loadTemplates()
-  assert.deepEqual(tpls.map((t) => t.id), ['兑换券'])
-  assert.equal(tpls[0].kind, 'card')
+  assert.equal(tpls.length, 4)
+  assert.deepEqual(
+    new Set(tpls.map((t) => t.id)),
+    new Set(['犯错卡', '奶茶券', '阿拉丁的灯', '娱乐券Token1M']),
+  )
+  assert.ok(tpls.every((t) => t.kind === 'card'))
   assert.ok(tpls.every((t) => t.id !== CURRENCY_ID))
   assert.equal(templateOf(CURRENCY_ID), undefined)
 })
 
+test('默认模板里不夹带私有梗', () => {
+  const text = JSON.stringify(DEFAULT_TEMPLATES)
+  for (const bad of ['虎鲸', '赛博', '本鱼', '老板', '诶嘿', '刷 B 站', 'ASR', '幼儿园']) {
+    assert.ok(!text.includes(bad), `默认模板不该出现「${bad}」`)
+  }
+})
+
 test('签发的票，正文 md5 与文件名一致', () => {
-  const r = issue('兑换券', 1, '给测试用', 'tester')
+  const r = issue('奶茶券', 1, '给测试用', 'tester')
   assert.equal(r.ok, true)
   const card = r.cards[0]
   const body = fs.readFileSync(card.path, 'utf8')
@@ -60,8 +72,8 @@ test('签发的票，正文 md5 与文件名一致', () => {
 })
 
 test('核销后票面追加消耗时间、文件保留、枚举跳过', () => {
-  issue('兑换券', 1, '', 'tester')
-  const r = redeem('兑换券', '拿去换了个东西', 1)
+  issue('奶茶券', 1, '', 'tester')
+  const r = redeem('奶茶券', '拿去换了个东西', 1)
   assert.equal(r.ok, true)
   assert.equal(r.remaining, 0)
   assert.match(r.say, /已核销/)
@@ -73,7 +85,7 @@ test('核销后票面追加消耗时间、文件保留、枚举跳过', () => {
 })
 
 test('票面被改一个字就算已消耗', () => {
-  const r = issue('兑换券', 1, '', 'tester')
+  const r = issue('奶茶券', 1, '', 'tester')
   const file = r.cards[0].path
   fs.appendFileSync(file, '\n偷偷改一下\n', 'utf8')
   assert.equal(listCards().length, 0)
@@ -87,14 +99,14 @@ test('账户校验：余额被改后兑换一律拒绝', () => {
   const text = fs.readFileSync(file, 'utf8').replace('余额：100', '余额：999999')
   fs.writeFileSync(file, text)
   assert.equal(readCurrency().ok, false)
-  const r = exchange('兑换券', 1)
+  const r = exchange('奶茶券', 1)
   assert.equal(r.ok, false)
   assert.match(r.error, /校验失败/)
 })
 
 test('兑换：先扣款再发卡，余额和票都对', () => {
   addFunds(1000, '测试充值')
-  const r = exchange('兑换券', 1, '测试兑换')
+  const r = exchange('奶茶券', 1, '测试兑换')
   assert.equal(r.ok, true)
   assert.equal(r.used, 100)
   assert.equal(r.balance, 900)
@@ -112,7 +124,7 @@ test('兑换发卡失败：自动退回，-N / +N 两条流水都保留', () => 
     return original(...args)
   }
   try {
-    const r = exchange('兑换券', 1)
+    const r = exchange('奶茶券', 1)
     assert.equal(r.ok, false)
     assert.match(r.error, /已退回/)
   } finally {

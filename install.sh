@@ -31,6 +31,8 @@ fi
 for f in index.js store.js hostdeps.mjs client.js package.json cordis.patch.yml README.md LICENSE; do
   [ -f "$SRC/$f" ] && cp -f "$SRC/$f" "$DEST/$f"
 done
+mkdir -p "$DEST/assets"
+[ -f "$SRC/assets/note.jpg" ] && cp -f "$SRC/assets/note.jpg" "$DEST/assets/note.jpg"
 echo "已复制到 $DEST"
 
 # 修补 bundles 列表（用 node 改 JSON，保留 2 空格缩进）

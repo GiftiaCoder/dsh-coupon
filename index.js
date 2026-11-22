@@ -15,6 +15,7 @@
  *
  * Web 面板：GET /api/wallet/state、POST /api/wallet/action（issue / trash / fund / exchange）
  */
+import fs from 'node:fs'
 import { loadHostDeps } from './hostdeps.mjs'
 import {
   CURRENCY_ID,
@@ -43,6 +44,8 @@ export const name = 'dsh-coupon'
 export const inject = ['agents', 'tools']
 
 const BODY_MAX_BYTES = 64 * 1024
+const NOTE_FILE = new URL('./assets/note.jpg', import.meta.url)
+let noteCache = null
 const OUTPUT_SCHEMA = { type: 'object', additionalProperties: true }
 
 function renderJson(_args, value) {
@@ -304,6 +307,27 @@ function installRoutes(ctx) {
     return undefined
   }
   const dispatchers = []
+
+  // 票样图片：面板里「账户」那一栏用；文件缺失时返回 404，不影响其它功能。
+  dispatchers.push(
+    webserver.register({
+      kind: 'exact',
+      path: '/api/wallet/note',
+      handler: (_req, res) => {
+        try {
+          if (!noteCache) noteCache = fs.readFileSync(NOTE_FILE)
+          res.writeHead(200, {
+            'content-type': 'image/jpeg',
+            'cache-control': 'public, max-age=86400',
+            'content-length': noteCache.length,
+          })
+          res.end(noteCache)
+        } catch (e) {
+          sendJson(res, 404, { ok: false, error: `票样图片缺失：${e && e.message ? e.message : e}` })
+        }
+      },
+    }),
+  )
 
   dispatchers.push(
     webserver.register({

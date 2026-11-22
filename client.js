@@ -15,8 +15,8 @@ window.__ModuleLoader__.load({
     const API = '/api/wallet'
 
     const CSS = `
-[data-wallet-page]{display:flex;flex-direction:column;gap:20px;padding:2px 2px 12px;max-width:780px;}
-[data-wallet-head]{display:flex;align-items:center;gap:14px;}
+[data-wallet-page]{display:flex;flex-direction:column;gap:14px;padding:0 2px 8px;max-width:780px;}
+[data-wallet-head]{display:flex;align-items:center;gap:10px;}
 [data-wallet-title]{display:flex;flex-direction:column;gap:2px;}
 [data-wallet-title] b{font-size:17px;letter-spacing:.02em;}
 [data-wallet-title] span{font-size:11px;color:var(--dsw-alias-label-tertiary,#9aa0a6);}
@@ -30,18 +30,21 @@ window.__ModuleLoader__.load({
 [data-wallet-btn][data-pay]{border-color:#0ea5e9;color:#0ea5e9;}
 [data-wallet-btn][data-pay]:hover{background:rgba(14,165,233,.1);}
 [data-wallet-btn]:disabled{opacity:.42;cursor:default;}
-[data-wallet-sec]{display:flex;flex-direction:column;gap:10px;}
+[data-wallet-sec]{display:flex;flex-direction:column;gap:8px;}
 [data-wallet-h]{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--dsw-alias-label-tertiary,#9aa0a6);text-transform:uppercase;}
 [data-wallet-money]{display:flex;align-items:baseline;gap:10px;border:1px solid rgba(240,165,0,.38);border-radius:14px;
-  padding:14px 16px;background:linear-gradient(135deg,rgba(255,183,3,.14),rgba(255,183,3,.03) 55%,transparent);}
+  padding:12px 14px;background:linear-gradient(135deg,rgba(255,183,3,.14),rgba(255,183,3,.03) 55%,transparent);}
 [data-wallet-money] .big{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
 [data-wallet-money] .unit{font-size:12px;font-weight:600;opacity:.7;}
 [data-wallet-money] .bad{font-size:10px;color:#e5484d;}
 [data-wallet-money] .grow{flex:1;}
+[data-wallet-note]{display:block;width:100%;max-width:420px;border-radius:12px;border:1px solid rgba(240,165,0,.28);}
+[data-wallet-fold]{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;}
+[data-wallet-caret]{font-size:10px;opacity:.6;}
 [data-wallet-fund]{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-[data-wallet-tpls]{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
+[data-wallet-tpls]{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
 [data-wallet-tpl]{border:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.24));border-radius:12px;padding:12px 14px;
-  display:flex;flex-direction:column;gap:6px;background:linear-gradient(160deg,rgba(14,165,233,.05),transparent 60%);}
+  display:flex;flex-direction:column;gap:5px;background:linear-gradient(160deg,rgba(14,165,233,.05),transparent 60%);}
 [data-wallet-tpl] .name{font-size:14px;font-weight:700;}
 [data-wallet-tpl] .meta{font-size:10px;opacity:.65;display:flex;gap:8px;align-items:center;}
 [data-wallet-tpl] .price{font-size:12px;font-weight:600;color:#b7791f;}
@@ -54,7 +57,7 @@ window.__ModuleLoader__.load({
 [data-wallet-form] select:focus,[data-wallet-form] input:focus{border-color:#f0a500;}
 [data-wallet-form] input[type=number]{width:76px;}
 [data-wallet-form] input[data-note]{flex:1;min-width:140px;}
-[data-wallet-wall]{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+[data-wallet-wall]{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;}
 [data-wallet-stub]{position:relative;border-radius:10px;padding:12px 14px 12px 30px;
   border:1px solid rgba(240,165,0,.4);background:linear-gradient(150deg,rgba(255,183,3,.10),rgba(255,183,3,.02) 55%,transparent);
   overflow:hidden;}
@@ -154,6 +157,7 @@ window.__ModuleLoader__.load({
       const [form, setForm] = React.useState({ type: '', count: 1, note: '' })
       const [fund, setFund] = React.useState({ amount: 100, note: '' })
       const [edit, setEdit] = React.useState(null)
+      const [showSpent, setShowSpent] = React.useState(false)
       const CUR = (state && state.currency && state.currency.id) || '鲸圆券'
 
       const apply = React.useCallback((next, message) => {
@@ -302,13 +306,14 @@ window.__ModuleLoader__.load({
             }),
             h('button', { 'data-wallet-btn': '', 'data-primary': '', onClick: fundIt, disabled: busy }, `签发${CUR}`),
           ),
+          h('img', { 'data-wallet-note': '', src: '/api/wallet/note', alt: `${CUR}票样`, loading: 'lazy' }),
         ),
 
         // 模板
         h(
           'div',
           { 'data-wallet-sec': '' },
-          h('div', { 'data-wallet-h': '' }, `票据模板（${state.templates.length}）· 自定义：往 ${state.templatesDir} 里加 md`),
+          h('div', { 'data-wallet-h': '' }, `票据模板（${state.templates.length}）`),
           h(
             'div',
             { 'data-wallet-tpls': '' },
@@ -409,30 +414,37 @@ window.__ModuleLoader__.load({
               ),
         ),
 
-        // 已消耗档案
+        // 已消耗档案（折叠，免得用完的票堆一屏）
         state.spent.length > 0
           ? h(
               'div',
               { 'data-wallet-sec': '' },
-              h('div', { 'data-wallet-h': '' }, `已消耗档案（${state.spent.length}）`),
               h(
-                'div',
-                { 'data-wallet-wall': '' },
-                state.spent.map((c) =>
-                  h(
-                    'div',
-                    { 'data-wallet-stub': '', 'data-spent': '', key: c.id },
-                    h('div', { className: 's' }, c.short),
-                    h('div', { className: 't' }, c.type),
-                    h(
-                      'div',
-                      { className: 'd' },
-                      c.mark && c.mark.at ? `${c.mark.kind === 'voided' ? '作废' : '消耗'}于 ${c.mark.at}` : '票面被动过，已跳过',
-                    ),
-                    c.note ? h('div', { className: 'note' }, `备注：${c.note}`) : null,
-                  ),
-                ),
+                'button',
+                { 'data-wallet-fold': '', onClick: () => setShowSpent((v) => !v) },
+                h('span', { 'data-wallet-h': '' }, `已消耗档案（${state.spent.length}）`),
+                h('span', { 'data-wallet-caret': '' }, showSpent ? '收起' : '展开'),
               ),
+              !showSpent
+                ? null
+                : h(
+                    'div',
+                    { 'data-wallet-wall': '' },
+                    state.spent.map((c) =>
+                      h(
+                        'div',
+                        { 'data-wallet-stub': '', 'data-spent': '', key: c.id },
+                        h('div', { className: 's' }, c.short),
+                        h('div', { className: 't' }, c.type),
+                        h(
+                          'div',
+                          { className: 'd' },
+                          c.mark && c.mark.at ? `${c.mark.kind === 'voided' ? '作废' : '消耗'}于 ${c.mark.at}` : '票面被动过，已跳过',
+                        ),
+                        c.note ? h('div', { className: 'note' }, `备注：${c.note}`) : null,
+                      ),
+                    ),
+                  ),
             )
           : null,
 
