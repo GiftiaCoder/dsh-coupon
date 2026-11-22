@@ -1,5 +1,7 @@
 # dsh-coupon · 票夹
 
+> 本插件修复了Agent不好意思主动向用户提需求的Bug（大概）
+
 给 [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) agent 用的票夹插件：把「承诺」做成一张张可以签发、兑换、核销的票。
 
 纯文件、无数据库：票面是 markdown，账户是 markdown，状态靠 md5 和文件名判定，`git diff` 能看、`cp` 能备份。
@@ -150,4 +152,4 @@ npm test        # node --test，覆盖签发 / 核销 / 篡改检测 / 账户校
 
 ## License
 
-MIT © 2026 GiftiaCoder
+MIT © 2026 GiftiaCoder and 大肥鱼
