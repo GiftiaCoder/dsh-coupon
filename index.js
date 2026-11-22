@@ -13,7 +13,8 @@
  *   wallet_exchange   用账户余额自主兑换卡券（先扣款、再发卡，失败自动退回）
  *   wallet_redeem     核销一张（说明用途 → 追加消耗时间）
  *
- * Web 面板：GET /api/wallet/state、POST /api/wallet/action（issue / trash / fund / exchange）
+ * Web 面板：GET /api/wallet/state、POST /api/wallet/action（issue / trash / fund）
+ *   注：面板不提供「兑换」——账户余额是 agent 的，只有 wallet_exchange 工具能动它。
  */
 import fs from 'node:fs'
 import { loadHostDeps } from './hostdeps.mjs'
@@ -369,10 +370,8 @@ function installRoutes(ctx) {
               const note = typeof body['note'] === 'string' ? body['note'].slice(0, 200) : ''
               result = addFunds(amount, note)
             } else if (action === 'exchange') {
-              const type = typeof body['type'] === 'string' ? body['type'] : ''
-              const count = Number(body['count'] ?? 1)
-              const note = typeof body['note'] === 'string' ? body['note'].slice(0, 200) : ''
-              result = exchange(type, count, note)
+              // 账户余额是 agent 自己的钱，面板不给人类开兑换口子；要兑什么让 agent 用 wallet_exchange。
+              result = { ok: false, error: '面板不提供兑换：账户余额只能由 agent 用 wallet_exchange 工具花' }
             } else if (action === 'template_save') {
               result = saveTemplate({
                 id: body['id'],

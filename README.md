@@ -74,7 +74,9 @@ bash install.sh          # 复制到 ~/.dsh/profiles/web/node_modules/dsh-coupon
 
 ## 面板
 
-DSH Web 的「设置 → 票夹」里有一页面板：账户余额与流水（带票样插图）、模板卡片、签发/兑换/作废、模板编辑（新建、改价、改规矩、删除）、票墙；已消耗档案默认折叠，点开才看。
+DSH Web 的「设置 → 票夹」里有一页面板：账户余额与流水（带票样插图）、模板卡片、签发/作废、模板编辑（新建、改价、改规矩、删除）、票墙；已消耗档案默认折叠，点开才看。
+
+面板不提供「兑换」按钮：账户余额是 agent 自己的钱，兑换只能由 agent 用 `wallet_exchange` 工具发起（HTTP 的 `exchange` action 也一律拒绝），人类这边只负责签发和作废。
 
 ![票样](assets/note.jpg)
 

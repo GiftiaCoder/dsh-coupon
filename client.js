@@ -1,7 +1,7 @@
 /**
  * dsh-coupon —— 浏览器半边（「设置」里的一页：票夹）
  *
- * 模板（可自定义）+ 账户（余额/流水/md5 封账）+ 兑换
+ * 模板（可自定义）+ 账户（余额/流水/md5 封账）；兑换只在 agent 侧
  *
  * ⭐ client bundle 是自注册脚本（不是 ESM）：
  *     window.__ModuleLoader__.load({ id: '<包名>', factory: (require) => ({ inject, apply }) })
@@ -27,8 +27,6 @@ window.__ModuleLoader__.load({
 [data-wallet-btn]:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.12));}
 [data-wallet-btn][data-primary]{background:#f0a500;border-color:#f0a500;color:#241a05;font-weight:600;}
 [data-wallet-btn][data-primary]:hover{background:#ffb703;}
-[data-wallet-btn][data-pay]{border-color:#0ea5e9;color:#0ea5e9;}
-[data-wallet-btn][data-pay]:hover{background:rgba(14,165,233,.1);}
 [data-wallet-btn]:disabled{opacity:.42;cursor:default;}
 [data-wallet-sec]{display:flex;flex-direction:column;gap:8px;}
 [data-wallet-h]{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--dsw-alias-label-tertiary,#9aa0a6);text-transform:uppercase;}
@@ -84,7 +82,7 @@ window.__ModuleLoader__.load({
 [data-wallet-ledger] .row .what{flex:1;}
 [data-wallet-flash]{font-size:11px;color:#2f9e44;min-height:14px;}
 [data-wallet-flash][data-err]{color:#e5484d;}
-[data-wallet-egg]{flex:none;filter:drop-shadow(0 2px 4px rgba(240,165,0,.25));}
+[data-wallet-rice]{flex:none;filter:drop-shadow(0 2px 4px rgba(56,131,192,.22));}
 [data-wallet-note]{font-size:10px;line-height:14px;opacity:.55;}
 [data-wallet-editor]{display:flex;flex-direction:column;gap:8px;border:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.28));border-radius:12px;padding:12px;}
 [data-wallet-editor] textarea{width:100%;box-sizing:border-box;font:inherit;font-size:12px;color:inherit;background:var(--dsw-alias-bg-l1,transparent);
@@ -93,30 +91,49 @@ window.__ModuleLoader__.load({
 [data-wallet-editor] input:disabled{opacity:.6;}
 `
 
-    function Egg(size) {
+    function Rice(size) {
       return h(
         'span',
-        { 'data-wallet-egg': '' },
+        { 'data-wallet-rice': '' },
         h(
           'svg',
           { viewBox: '0 0 64 64', width: size || 46, height: size || 46, 'aria-hidden': 'true' },
+          // 饭堆：一座圆润的白色小山
           h('path', {
-            d: 'M31 8.5c7.5-.4 14.6 3.2 19 9.4 4.2 5.9 5 13.4 2.4 20-2.4 6.2-8.1 11-14.6 12.6-6.3 1.6-13.2.2-18.2-3.9C14.4 41.9 11.6 36.2 11.4 30c-.2-6 2.6-11.8 7.4-15.4 3.5-2.6 7.8-4.4 12.2-6.1Z',
+            d: 'M16 36c0-8 7-13 16-13s16 5 16 13Z',
             fill: '#fffdf6',
-            stroke: '#f0e2bd',
+            stroke: '#efe6cf',
+            strokeWidth: '1.4',
+          }),
+          // 几粒米
+          h('circle', { cx: 24, cy: 31, r: 2, fill: '#f6efdd' }),
+          h('circle', { cx: 32, cy: 27, r: 2, fill: '#f6efdd' }),
+          h('circle', { cx: 40, cy: 31, r: 2, fill: '#f6efdd' }),
+          h('circle', { cx: 28, cy: 34, r: 1.5, fill: '#f6efdd' }),
+          h('circle', { cx: 37, cy: 34, r: 1.5, fill: '#f6efdd' }),
+          // 碗
+          h('path', {
+            d: 'M11 36h42c0 10-9 17-21 17S11 46 11 36Z',
+            fill: '#e8f3ff',
+            stroke: '#a9cdea',
             strokeWidth: '1.6',
           }),
+          // 碗沿高光
           h('path', {
-            d: 'M20 18c4-3 10-4 15-2',
+            d: 'M15 38h34',
             fill: 'none',
-            stroke: '#f7efda',
-            strokeWidth: '5',
+            stroke: '#c5e0f6',
+            strokeWidth: '1.6',
             strokeLinecap: 'round',
           }),
-          h('circle', { cx: 34, cy: 34, r: 11.5, fill: '#ffb703' }),
-          h('circle', { cx: 30.5, cy: 30.5, r: 4.2, fill: '#ffd166' }),
-          h('circle', { cx: 41, cy: 26, r: 2.2, fill: '#f59e0b', opacity: '0.75' }),
-          h('circle', { cx: 24, cy: 40, r: 1.6, fill: '#f0a500', opacity: '0.5' }),
+          // 碗足
+          h('path', {
+            d: 'M25 55h14',
+            fill: 'none',
+            stroke: '#a9cdea',
+            strokeWidth: '2',
+            strokeLinecap: 'round',
+          }),
         ),
       )
     }
@@ -203,7 +220,6 @@ window.__ModuleLoader__.load({
           if (ok) setForm((f) => ({ ...f, note: '' }))
         })
 
-      const buy = (type) => post({ action: 'exchange', type, count: 1 }, `兑换 1 张「${type}」`)
       const fundIt = () =>
         post({ action: 'fund', amount: Number(fund.amount) || 0, note: fund.note }, `充值 ${Number(fund.amount) || 0} ${CUR}`).then((ok) => {
           if (ok) setFund((f) => ({ ...f, note: '' }))
@@ -269,7 +285,7 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { 'data-wallet-head': '' },
-          Egg(48),
+          Rice(48),
           h(
             'div',
             { 'data-wallet-title': '' },
@@ -335,19 +351,6 @@ window.__ModuleLoader__.load({
                 h(
                   'div',
                   { className: 'ops' },
-                  t.kind !== 'currency'
-                    ? h(
-                        'button',
-                        {
-                          'data-wallet-btn': '',
-                          'data-pay': '',
-                          disabled: busy || !state.currency.ok || state.currency.balance < t.price,
-                          onClick: () => buy(t.id),
-                          title: state.currency.balance < t.price ? `${CUR}不够` : `用${CUR}兑换`,
-                        },
-                        `兑换 1 张（${fmt(t.price)}）`,
-                      )
-                    : null,
                   h('button', { 'data-wallet-btn': '', onClick: () => openEdit(t) }, '编辑'),
                 ),
               ),
@@ -395,7 +398,7 @@ window.__ModuleLoader__.load({
           { 'data-wallet-sec': '' },
           h('div', { 'data-wallet-h': '' }, `票墙（${state.cards.length}）`),
           state.cards.length === 0
-            ? h('div', { 'data-wallet-empty': '' }, `票夹是空的。签发一张，或者用${CUR}兑换一张。`)
+            ? h('div', { 'data-wallet-empty': '' }, '票夹是空的。签发一张票，它就会出现在这里。')
             : h(
                 'div',
                 { 'data-wallet-wall': '' },

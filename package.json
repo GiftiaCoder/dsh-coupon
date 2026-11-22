@@ -1,6 +1,6 @@
 {
   "name": "dsh-coupon",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "给 DSH agent 的票夹：markdown 模板 + 单账户 + md5 自校验核销 + Web 面板。",
   "license": "MIT",
   "author": "GiftiaCoder",
