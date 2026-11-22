@@ -32,7 +32,9 @@ for f in index.js store.js hostdeps.mjs client.js package.json cordis.patch.yml 
   [ -f "$SRC/$f" ] && cp -f "$SRC/$f" "$DEST/$f"
 done
 mkdir -p "$DEST/assets"
-[ -f "$SRC/assets/note.jpg" ] && cp -f "$SRC/assets/note.jpg" "$DEST/assets/note.jpg"
+for f in note.jpg note-engraved.jpg; do
+  [ -f "$SRC/assets/$f" ] && cp -f "$SRC/assets/$f" "$DEST/assets/$f"
+done
 echo "已复制到 $DEST"
 
 # 修补 bundles 列表（用 node 改 JSON，保留 2 空格缩进）
