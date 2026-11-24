@@ -44,14 +44,23 @@ window.__ModuleLoader__.load({
 [data-wallet-fold]{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;}
 [data-wallet-caret]{font-size:10px;opacity:.6;}
 [data-wallet-fund]{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-[data-wallet-tpls]{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
-[data-wallet-tpl]{border:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.24));border-radius:12px;padding:12px 14px;
-  display:flex;flex-direction:column;gap:5px;background:linear-gradient(160deg,rgba(14,165,233,.05),transparent 60%);}
-[data-wallet-tpl] .name{font-size:14px;font-weight:700;}
-[data-wallet-tpl] .meta{font-size:10px;opacity:.65;display:flex;gap:8px;align-items:center;}
-[data-wallet-tpl] .price{font-size:12px;font-weight:600;color:#0ea5e9;}
-[data-wallet-tpl] .blurb{font-size:10px;line-height:14px;color:var(--dsw-alias-label-tertiary,#9aa0a6);}
-[data-wallet-tpl] .ops{display:flex;gap:8px;margin-top:auto;flex-wrap:wrap;}
+[data-wallet-tpls]{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;}
+[data-wallet-tpl]{border:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.24));border-radius:10px;padding:9px 11px;
+  display:flex;flex-direction:column;gap:3px;background:linear-gradient(160deg,rgba(14,165,233,.05),transparent 60%);}
+[data-wallet-tpl] .head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+[data-wallet-tpl] .head .name{font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+[data-wallet-tpl] .head .ops{display:flex;gap:5px;flex:none;}
+[data-wallet-tpl] .head .ops button{font-size:10px;padding:2px 7px;}
+[data-wallet-tpl] .meta{font-size:10px;opacity:.65;}
+[data-wallet-tpl] .price{font-size:11px;font-weight:600;color:#0ea5e9;}
+[data-wallet-tpl] .blurb{font-size:10px;line-height:13px;color:var(--dsw-alias-label-tertiary,#9aa0a6);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+[data-wallet-group]{display:flex;flex-direction:column;gap:7px;}
+[data-wallet-group]+[data-wallet-group]{margin-top:4px;}
+[data-wallet-group-head]{display:flex;justify-content:space-between;align-items:center;gap:8px;background:none;border:0;
+  padding:2px 0;font:inherit;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--dsw-alias-label-tertiary,#9aa0a6);cursor:pointer;}
+[data-wallet-group-head] .fold{font-size:10px;font-weight:400;letter-spacing:0;text-transform:none;opacity:.55;}
 [data-wallet-form]{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border:1px dashed var(--dsw-alias-border-l1,rgba(128,128,128,.3));
   border-radius:12px;padding:12px;}
 [data-wallet-form] select,[data-wallet-form] input{font:inherit;font-size:12px;color:inherit;background:var(--dsw-alias-bg-l1,transparent);
@@ -177,6 +186,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const [fund, setFund] = React.useState({ amount: 100, note: '' })
       const [edit, setEdit] = React.useState(null)
+      const [collapsed, setCollapsed] = React.useState({})
       const [showSpent, setShowSpent] = React.useState(false)
       const editorRef = React.useRef(null)
       const CUR = (state && state.currency && state.currency.id) || '鲸圆券'
@@ -347,35 +357,63 @@ window.__ModuleLoader__.load({
           'div',
           { 'data-wallet-sec': '' },
           h('div', { 'data-wallet-h': '' }, `票据模板（${state.templates.length}）`),
-          h(
-            'div',
-            { 'data-wallet-tpls': '' },
-            state.templates.map((t) =>
-              h(
+          (() => {
+            const GROUP_ORDER = ['守则', '契约', '玩法', '权益', '其他']
+            const byGroup = new Map()
+            for (const t of state.templates) {
+              const g = t.group || '其他'
+              if (!byGroup.has(g)) byGroup.set(g, [])
+              byGroup.get(g).push(t)
+            }
+            const order = [
+              ...GROUP_ORDER.filter((g) => byGroup.has(g)),
+              ...[...byGroup.keys()].filter((g) => !GROUP_ORDER.includes(g)),
+            ]
+            return order.map((g) => {
+              const list = byGroup.get(g)
+              const folded = collapsed[g] === true
+              return h(
                 'div',
-                { 'data-wallet-tpl': '', key: t.id },
-                h('div', { className: 'name' }, t.id),
+                { 'data-wallet-group': '', key: g },
                 h(
-                  'div',
-                  { className: 'meta' },
-                  h('span', {}, t.kind === 'currency' ? '账户 / 货币' : `手里 ${t.count} 张`),
-                  h('span', {}, t.currency),
+                  'button',
+                  { 'data-wallet-group-head': '', onClick: () => setCollapsed((c) => ({ ...c, [g]: !c[g] })) },
+                  h('span', {}, `${g}（${list.length}）`),
+                  h('span', { className: 'fold' }, folded ? '展开' : '收起'),
                 ),
-                t.kind === 'currency'
-                  ? h('div', { className: 'price' }, '按金额签发，不按张')
-                  : h('div', { className: 'price' }, `价格 ${fmt(t.price)} ${CUR}`),
-                h('div', { className: 'blurb' }, t.blurb),
-                h(
-                  'div',
-                  { className: 'ops' },
-                  h('button', { 'data-wallet-btn': '', onClick: () => openEdit(t) }, '编辑'),
-                  t.kind === 'currency'
-                    ? null
-                    : h('button', { 'data-wallet-btn': '', 'data-primary': '', onClick: () => issueOne(t), disabled: busy }, '签发'),
-                ),
-              ),
-            ),
-          ),
+                folded
+                  ? null
+                  : h(
+                      'div',
+                      { 'data-wallet-tpls': '' },
+                      list.map((t) =>
+                        h(
+                          'div',
+                          { 'data-wallet-tpl': '', key: t.id },
+                          h(
+                            'div',
+                            { className: 'head' },
+                            h('div', { className: 'name' }, t.id),
+                            h(
+                              'div',
+                              { className: 'ops' },
+                              h('button', { 'data-wallet-btn': '', onClick: () => openEdit(t) }, '编辑'),
+                              t.kind === 'currency'
+                                ? null
+                                : h('button', { 'data-wallet-btn': '', 'data-primary': '', onClick: () => issueOne(t), disabled: busy }, '签发'),
+                            ),
+                          ),
+                          h('div', { className: 'meta' }, t.kind === 'currency' ? '账户 / 货币' : `手里 ${t.count} 张`),
+                          t.kind === 'currency'
+                            ? h('div', { className: 'price' }, '按金额签发，不按张')
+                            : h('div', { className: 'price' }, `价格 ${fmt(t.price)} ${CUR}`),
+                          h('div', { className: 'blurb' }, t.blurb),
+                        ),
+                      ),
+                    ),
+              )
+            })
+          })(),
         ),
 
         // 票墙

@@ -1,6 +1,7 @@
 ---
 id: 娱乐券Token1M
 kind: card
+group: 权益
 price: 1000
 currency: 鲸圆券
 ---
