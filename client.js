@@ -30,13 +30,17 @@ window.__ModuleLoader__.load({
 [data-wallet-btn]:disabled{opacity:.42;cursor:default;}
 [data-wallet-sec]{display:flex;flex-direction:column;gap:8px;}
 [data-wallet-h]{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--dsw-alias-label-tertiary,#9aa0a6);text-transform:uppercase;}
-[data-wallet-money]{display:flex;align-items:baseline;gap:10px;border:1px solid rgba(56,189,248,.42);border-radius:14px;
+[data-wallet-money]{display:flex;align-items:center;gap:12px;border:1px solid rgba(56,189,248,.42);border-radius:14px;
   padding:12px 14px;background:linear-gradient(135deg,rgba(125,211,252,.18),rgba(125,211,252,.04) 55%,transparent);}
+[data-wallet-money-main]{display:flex;flex-direction:column;gap:9px;min-width:0;flex:1;}
+[data-wallet-money] .bal{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
 [data-wallet-money] .big{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
 [data-wallet-money] .unit{font-size:12px;font-weight:600;opacity:.7;}
 [data-wallet-money] .bad{font-size:10px;color:#e5484d;}
 [data-wallet-money] .grow{flex:1;}
-[data-wallet-note]{display:block;width:100%;max-width:420px;border-radius:12px;border:1px solid rgba(56,189,248,.30);}
+[data-wallet-money] .note{width:156px;height:88px;object-fit:contain;border-radius:10px;flex:none;align-self:center;border:1px solid rgba(56,189,248,.30);}
+[data-wallet-glyph]{display:inline-flex;width:16px;height:16px;border-radius:4px;overflow:hidden;flex:none;}
+[data-wallet-glyph] img,[data-wallet-noteicon] img{width:100%;height:100%;object-fit:cover;object-position:left center;display:block;}
 [data-wallet-fold]{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;}
 [data-wallet-caret]{font-size:10px;opacity:.6;}
 [data-wallet-fund]{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
@@ -171,10 +175,10 @@ window.__ModuleLoader__.load({
       const [err, setErr] = React.useState('')
       const [flash, setFlash] = React.useState('')
       const [busy, setBusy] = React.useState(false)
-      const [form, setForm] = React.useState({ type: '', count: 1, note: '' })
       const [fund, setFund] = React.useState({ amount: 100, note: '' })
       const [edit, setEdit] = React.useState(null)
       const [showSpent, setShowSpent] = React.useState(false)
+      const editorRef = React.useRef(null)
       const CUR = (state && state.currency && state.currency.id) || '鲸圆券'
 
       const apply = React.useCallback((next, message) => {
@@ -189,9 +193,7 @@ window.__ModuleLoader__.load({
 
       const load = React.useCallback(async () => {
         try {
-          const next = await jget('/state')
-          apply(next)
-          setForm((f) => (f.type && next.templates.some((t) => t.id === f.type) ? f : { ...f, type: (next.templates.find((t) => t.kind !== 'currency') || {}).id || '' }))
+          apply(await jget('/state'))
         } catch (e) {
           setErr(String(e.message || e))
         }
@@ -215,10 +217,16 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const submit = () =>
-        post({ action: 'issue', type: form.type, count: Number(form.count) || 1, note: form.note }, `签发 ${Number(form.count) || 1} 张「${form.type}」`).then((ok) => {
-          if (ok) setForm((f) => ({ ...f, note: '' }))
-        })
+      // 卡片上的签发：点一下签 1 张（管理员签发，不扣货币）
+      const issueOne = (t) =>
+        post({ action: 'issue', type: t.id, count: 1, note: '' }, `签发 1 张「${t.id}」`)
+
+      // 点了编辑/新建后，把模板编辑那一栏滚进视野
+      React.useEffect(() => {
+        if (edit && editorRef.current) {
+          editorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, [edit])
 
       const fundIt = () =>
         post({ action: 'fund', amount: Number(fund.amount) || 0, note: fund.note }, `充值 ${Number(fund.amount) || 0} ${CUR}`).then((ok) => {
@@ -276,7 +284,7 @@ window.__ModuleLoader__.load({
       }
 
       const cardTemplates = state.templates.filter((t) => t.kind !== 'currency')
-      const activeType = state.templates.find((t) => t.id === form.type) || cardTemplates[0]
+      const activeType = cardTemplates[0] || state.templates[0]
 
       return h(
         'div',
@@ -297,6 +305,8 @@ window.__ModuleLoader__.load({
           h('button', { 'data-wallet-btn': '', onClick: load, disabled: busy }, '刷新'),
         ),
 
+        h('div', { 'data-wallet-flash': '', 'data-err': err ? '' : undefined }, err || flash),
+
         // 账户
         h(
           'div',
@@ -305,24 +315,31 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { 'data-wallet-money': '' },
-            h('span', { className: 'big' }, fmt(state.currency.balance)),
-            h('span', { className: 'unit' }, CUR),
-            h('div', { className: 'grow' }),
-            state.currency.ok ? null : h('span', { className: 'bad' }, '账户校验失败，兑换已锁定'),
+            h(
+              'div',
+              { 'data-wallet-money-main': '' },
+              h(
+                'div',
+                { className: 'bal' },
+                h('span', { className: 'big' }, fmt(state.currency.balance)),
+                h('span', { className: 'unit' }, CUR),
+                state.currency.ok ? null : h('span', { className: 'bad' }, '账户校验失败，兑换已锁定'),
+              ),
+              h(
+                'div',
+                { 'data-wallet-fund': '' },
+                h('input', { type: 'number', min: 1, value: fund.amount, onChange: (e) => setFund((f) => ({ ...f, amount: e.target.value })) }),
+                h('input', {
+                  'data-note': '',
+                  placeholder: '备注（可选）',
+                  value: fund.note,
+                  onChange: (e) => setFund((f) => ({ ...f, note: e.target.value })),
+                }),
+                h('button', { 'data-wallet-btn': '', 'data-primary': '', onClick: fundIt, disabled: busy }, `签发${CUR}`),
+              ),
+            ),
+            h('img', { className: 'note', src: '/api/wallet/note', alt: `${CUR}票样`, loading: 'lazy' }),
           ),
-          h(
-            'div',
-            { 'data-wallet-fund': '' },
-            h('input', { type: 'number', min: 1, value: fund.amount, onChange: (e) => setFund((f) => ({ ...f, amount: e.target.value })) }),
-            h('input', {
-              'data-note': '',
-              placeholder: '备注（可选）',
-              value: fund.note,
-              onChange: (e) => setFund((f) => ({ ...f, note: e.target.value })),
-            }),
-            h('button', { 'data-wallet-btn': '', 'data-primary': '', onClick: fundIt, disabled: busy }, `签发${CUR}`),
-          ),
-          h('img', { 'data-wallet-note': '', src: '/api/wallet/note', alt: `${CUR}票样`, loading: 'lazy' }),
         ),
 
         // 模板
@@ -352,44 +369,13 @@ window.__ModuleLoader__.load({
                   'div',
                   { className: 'ops' },
                   h('button', { 'data-wallet-btn': '', onClick: () => openEdit(t) }, '编辑'),
+                  t.kind === 'currency'
+                    ? null
+                    : h('button', { 'data-wallet-btn': '', 'data-primary': '', onClick: () => issueOne(t), disabled: busy }, '签发'),
                 ),
               ),
             ),
           ),
-        ),
-
-        // 签发
-        h(
-          'div',
-          { 'data-wallet-sec': '' },
-          h('div', { 'data-wallet-h': '' }, `签发（管理员，不扣${CUR}）`),
-          h(
-            'div',
-            { 'data-wallet-form': '' },
-            h(
-              'select',
-              { value: form.type, onChange: (e) => setForm((f) => ({ ...f, type: e.target.value })) },
-              cardTemplates.map((t) => h('option', { key: t.id, value: t.id }, t.id)),
-            ),
-            h('input', {
-              type: 'number',
-              min: 1,
-              max: 20,
-              value: form.count,
-              onChange: (e) => setForm((f) => ({ ...f, count: e.target.value })),
-            }),
-            h('input', {
-              'data-note': '',
-              placeholder: '备注（可选）：为什么发这张',
-              value: form.note,
-              onChange: (e) => setForm((f) => ({ ...f, note: e.target.value })),
-              onKeyDown: (e) => {
-                if (e.key === 'Enter') submit()
-              },
-            }),
-            h('button', { 'data-wallet-btn': '', 'data-primary': '', onClick: submit, disabled: busy }, '签发'),
-          ),
-          h('div', { 'data-wallet-flash': '', 'data-err': err ? '' : undefined }, err || flash),
         ),
 
         // 票墙
@@ -520,7 +506,7 @@ window.__ModuleLoader__.load({
             edit
               ? h(
                   'div',
-                  { 'data-wallet-editor': '' },
+                  { 'data-wallet-editor': '', ref: editorRef },
                   h(
                     'div',
                     { 'data-wallet-form': '' },
@@ -568,6 +554,27 @@ window.__ModuleLoader__.load({
       )
     }
 
+    // 右侧栏（工作区文件那一栏）的票夹 tab：类型 id / kind，以及胶囊里的小票图标
+    const SIDEBAR_ID = 'dsh-coupon'
+    const SIDEBAR_KIND = 'wallet'
+
+    // 图标直接用货币票样图（/api/wallet/note），不另画 SVG；小尺寸裁切保留左侧图案
+    const NoteImg = () => h('img', { src: '/api/wallet/note', alt: '', loading: 'lazy' })
+    const NoteGlyph = () => h('span', { 'data-wallet-glyph': '' }, h(NoteImg))
+    const NoteIcon = () =>
+      h(
+        'span',
+        { 'data-wallet-noteicon': '', style: { width: '26px', height: '26px', borderRadius: '6px', overflow: 'hidden', display: 'block' } },
+        h(NoteImg),
+      )
+
+    const WalletTabTitle = () =>
+      h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '5px' } }, h(NoteGlyph), '票夹')
+
+    // 侧栏里给面板一个自己的滚动容器，避免被 tab body 裁掉
+    const SidebarPanel = () =>
+      h('div', { 'data-wallet-sidebar': '', style: { height: '100%', overflowY: 'auto', boxSizing: 'border-box', padding: '4px 10px 12px' } }, h(Panel))
+
     return {
       inject: ['slots'],
       apply(ctx) {
@@ -579,9 +586,41 @@ window.__ModuleLoader__.load({
 
         const slots = typeof ctx.get === 'function' ? ctx.get('slots') : undefined
         if (!slots) return
+        // 设置页入口
         slots.inject('settings.section', () =>
           slots.register({ name: 'settings.section', id: 'wallet', order: 34, label: '票夹' }, () => h(Panel)),
         )
+
+        // 右侧栏入口：与「文件」「终端」并排的票夹 tab。
+        // 用 ctx.inject 动态等 sidebarRightTabs —— 老版本 dsh 没有这个服务时整段跳过，不影响设置页入口。
+        ctx.inject(['sidebarRightTabs'], (sub) => {
+          const tabs = sub.sidebarRightTabs
+          sub.effect(
+            () =>
+              tabs.register({
+                id: SIDEBAR_ID,
+                kind: SIDEBAR_KIND,
+                priority: 'extension',
+                title: () => '票夹',
+                guide: [{ id: 'wallet', order: 30, title: () => '票夹', description: () => '余额、流水、模板与票据', icon: NoteIcon }],
+              }),
+            'dsh-coupon: 右栏票夹类型',
+          )
+          sub.effect(
+            () =>
+              slots.inject('sidebar.right.pane.tab', () =>
+                slots.register({ name: 'sidebar.right.pane.tab', key: SIDEBAR_ID }, SidebarPanel),
+              ),
+            'dsh-coupon: 右栏票夹面板',
+          )
+          sub.effect(
+            () =>
+              slots.inject('sidebar.right.pane.tab.title', () =>
+                slots.register({ name: 'sidebar.right.pane.tab.title', key: SIDEBAR_ID }, WalletTabTitle),
+              ),
+            'dsh-coupon: 右栏票夹标题',
+          )
+        })
       },
     }
   },
