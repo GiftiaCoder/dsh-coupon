@@ -133,7 +133,7 @@ currency: 鲸圆券
 
 `assets/note.jpg` 是「鲸圆券」的票样配图（蜡笔版），面板和上面这张图都用它；`assets/note-engraved.jpg` 是另一版雕版风格，留给需要更「纸币」质感的场合。
 
-两张图都由项目作者提供，**不在 MIT 许可范围内**；转发或再使用时请保留出处。
+两张图均来自网络，无法找到原作者。**不在 MIT 许可范围内**，仅作为本项目的票面示例随仓库一并分发；如需转发或再使用，请自行确认来源与授权。
 
 ## 安全边界
 
@@ -149,7 +149,7 @@ npm test        # node --test，覆盖签发 / 核销 / 篡改检测 / 账户校
 
 - `store.js`：纯文件层，不依赖 DSH / cordis，可以单独跑
 - `index.js`：宿主半边，注册工具和 `/api/wallet/*` 路由
-- `client.js`：浏览器半边，自注册脚本，挂到「设置」页
+- `client.js`：浏览器半边，自注册脚本，挂到「设置」页和会话右侧栏
 - `hostdeps.mjs`：从宿主树里取 `defineTool`，取不到时用本地等价实现兜底
 
 `client.js` 依赖 DSH 客户端的 settings 插槽，DSH 升级时这部分最可能先动；升级后如果面板消失，先看 `node_modules/dsh-coupon` 是否被覆盖。
@@ -157,3 +157,5 @@ npm test        # node --test，覆盖签发 / 核销 / 篡改检测 / 账户校
 ## License
 
 MIT © 2026 GiftiaCoder and 大肥鱼
+
+票样插图（`assets/note.jpg`、`assets/note-engraved.jpg`）来自网络，无法找到原作者，**不在 MIT 许可范围内**。
