@@ -94,6 +94,8 @@ DSH Web 里有两个入口：**设置 → 票夹**，以及会话**右侧栏**�
 
 面板不提供「兑换」按钮：账户余额是 agent 自己的钱，兑换只能由 agent 用 `wallet_exchange` 工具发起（HTTP 的 `exchange` action 也一律拒绝），人类这边只负责签发和作废。
 
+面板接口要过宿主鉴权：没登录会看到「未登录：请先在 DSH 页面登录」，Host / Origin 不在信任列表里会看到「来源不可信」——不是面板坏了，是这次请求没被放行。
+
 ![票样](assets/note.jpg)
 
 ## 自定义票种
@@ -152,17 +154,20 @@ currency: 鲸圆券
 ## 安全边界
 
 - **md5 不是加密**。它防手滑、防 agent 乱改，不防有意的伪造：能改文件的人也能重算 md5。要真防篡改，得换签名方案。
-- **面板接口等同于管理员**。`POST /api/wallet/action` 能签发票据、给账户充值；它依赖 DSH Web 自身的鉴权，不要把 DSH Web 裸暴露在不可信网络上。
+- **面板接口走宿主鉴权，不是裸口子**。三条路由（`/api/wallet/state`、`/api/wallet/action`、`/api/wallet/note`）动手之前都先调宿主的 `connection.requestRejection(req)`，和 DSH 自带 Web 插件（如 `open-in-app`）同一套围栏：Host / Origin 不匹配的一律 403，没有 DSH 登录 cookie 的一律 401，被拒的请求连票据状态都不碰（签不出票、动不了余额）。拿不到这个服务的宿主机（老版本或非 Web composition）**一条路由都不装**（fail closed）——面板不出现，工具照常可用。
+- **反向代理要把域名登记进信任列表**。用域名反代 DSH Web 时，把域名加进 `dsh web --trusted-host`（没有的话，宿主自己的 `/api` 也会一起 403）。不在信任列表里的 Host 打开面板，会看到「请求被拒绝：来源不可信」。
+- `POST /api/wallet/action` 仍然是管理员级能力（能签票、能充值），上面的围栏只是把它绑回「已经登录这台 DSH 的人」。
 - 账户文件和票面是明文 markdown；票夹目录的权限按普通用户数据处理。
 
 ## 开发
 
 ```bash
-npm test        # node --test，覆盖签发 / 核销 / 篡改检测 / 账户校验 / 兑换失败退回
+npm test        # node --test，覆盖签发 / 核销 / 篡改检测 / 账户校验 / 兑换失败退回 / 面板路由访问检查
 ```
 
 - `store.js`：纯文件层，不依赖 DSH / cordis，可以单独跑
-- `index.js`：宿主半边，注册工具和 `/api/wallet/*` 路由
+- `index.js`：宿主半边，注册 5 个钱包工具，把面板路由挂到宿主 `webServer`
+- `routes.mjs`：面板的三条 HTTP 路由，每条 handler 动手前先过宿主的 `connection.requestRejection` 访问检查
 - `client.js`：浏览器半边，自注册脚本，挂到「设置」页和会话右侧栏
 - `hostdeps.mjs`：从宿主树里取 `defineTool`，取不到时用本地等价实现兜底
 

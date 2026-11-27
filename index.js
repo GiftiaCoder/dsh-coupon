@@ -15,25 +15,23 @@
  *
  * Web 面板：GET /api/wallet/state、POST /api/wallet/action（issue / trash / fund）
  *   注：面板不提供「兑换」——账户余额是 agent 的，只有 wallet_exchange 工具能动它。
+ *   路由本体在 routes.mjs（每条 handler 都过宿主的 connection 访问检查）。
  */
-import fs from 'node:fs'
 import { loadHostDeps } from './hostdeps.mjs'
+import { installWalletRoutes } from './routes.mjs'
 import {
   CURRENCY_ID,
   MAX_EXCHANGE,
   addFunds,
   agentName,
-  deleteTemplate,
   exchange,
   issue,
   listCards,
   listAll,
   loadTemplates,
   redeem,
-  saveTemplate,
   snapshot,
   templateOf,
-  trash,
   walletDir,
 } from './store.js'
 
@@ -44,9 +42,6 @@ const defineTool = hostDeps.defineTool
 export const name = 'dsh-coupon'
 export const inject = ['agents', 'tools']
 
-const BODY_MAX_BYTES = 64 * 1024
-const NOTE_FILE = new URL('./assets/note.jpg', import.meta.url)
-let noteCache = null
 const OUTPUT_SCHEMA = { type: 'object', additionalProperties: true }
 
 function renderJson(_args, value) {
@@ -272,131 +267,19 @@ function walletToolDefinitions(agent, services) {
   ]
 }
 
-function readBody(req, maxBytes) {
-  return new Promise((resolve, reject) => {
-    const chunks = []
-    let size = 0
-    req.on('data', (chunk) => {
-      size += chunk.length
-      if (size > maxBytes) {
-        reject(new Error('body too large'))
-        req.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'))
-      } catch (e) {
-        reject(e)
-      }
-    })
-    req.on('error', reject)
-  })
-}
-
-function sendJson(res, status, body) {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
-  res.end(JSON.stringify(body))
-}
-
+/**
+ * 挂面板路由：Web 宿主装（每条 handler 自带 connection 访问检查，见 routes.mjs），
+ * 没有 webServer 的宿主（headless / CLI）什么都不装，工具照常可用。
+ */
 function installRoutes(ctx) {
-  const webserver = ctx.get('webServer', false)
-  if (!webserver) {
-    ctx.logger.info('dsh-coupon: no webserver composed; wallet panel routes not installed.')
-    return undefined
-  }
-  const dispatchers = []
-
-  // 票样图片：面板里「账户」那一栏用；文件缺失时返回 404，不影响其它功能。
-  dispatchers.push(
-    webserver.register({
-      kind: 'exact',
-      path: '/api/wallet/note',
-      handler: (_req, res) => {
-        try {
-          if (!noteCache) noteCache = fs.readFileSync(NOTE_FILE)
-          res.writeHead(200, {
-            'content-type': 'image/jpeg',
-            'cache-control': 'public, max-age=86400',
-            'content-length': noteCache.length,
-          })
-          res.end(noteCache)
-        } catch (e) {
-          sendJson(res, 404, { ok: false, error: `票样图片缺失：${e && e.message ? e.message : e}` })
-        }
-      },
-    }),
-  )
-
-  dispatchers.push(
-    webserver.register({
-      kind: 'exact',
-      path: '/api/wallet/state',
-      handler: (_req, res) => {
-        try {
-          sendJson(res, 200, snapshot())
-        } catch (e) {
-          sendJson(res, 500, { ok: false, error: e && e.message ? e.message : String(e) })
-        }
-      },
-    }),
-  )
-
-  dispatchers.push(
-    webserver.register({
-      kind: 'exact',
-      path: '/api/wallet/action',
-      handler: (req, res) => {
-        if (req.method !== 'POST') {
-          sendJson(res, 405, { ok: false, error: 'POST only' })
-          return
-        }
-        readBody(req, BODY_MAX_BYTES)
-          .then((body) => {
-            const action = typeof body['action'] === 'string' ? body['action'] : ''
-            let result
-            if (action === 'issue') {
-              const type = typeof body['type'] === 'string' ? body['type'] : ''
-              const count = Number(body['count'] ?? 1)
-              const note = typeof body['note'] === 'string' ? body['note'].slice(0, 200) : ''
-              result = issue(type, count, note)
-            } else if (action === 'trash') {
-              const serial = typeof body['serial'] === 'string' ? body['serial'] : ''
-              result = trash(serial)
-            } else if (action === 'fund') {
-              const amount = Number(body['amount'] ?? 0)
-              const note = typeof body['note'] === 'string' ? body['note'].slice(0, 200) : ''
-              result = addFunds(amount, note)
-            } else if (action === 'exchange') {
-              // 账户余额是 agent 自己的钱，面板不给人类开兑换口子；要兑什么让 agent 用 wallet_exchange。
-              result = { ok: false, error: '面板不提供兑换：账户余额只能由 agent 用 wallet_exchange 工具花' }
-            } else if (action === 'template_save') {
-              result = saveTemplate({
-                id: body['id'],
-                kind: body['kind'],
-                price: body['price'],
-                currency: body['currency'],
-                blurb: body['blurb'],
-                rules: body['rules'],
-                exceptions: body['exceptions'],
-              })
-            } else if (action === 'template_delete') {
-              result = deleteTemplate(body['id'])
-            } else {
-              result = { ok: false, error: `unknown action: ${action}` }
-            }
-            sendJson(res, result.ok ? 200 : 400, result.ok ? snapshot() : result)
-          })
-          .catch((e) => sendJson(res, 400, { ok: false, error: e && e.message ? e.message : String(e) }))
-      },
-    }),
-  )
-
-  return () => {
-    for (const d of dispatchers) d()
-  }
+  return installWalletRoutes({
+    webserver: ctx.get('webServer', false),
+    connection: ctx.get('connection', false),
+    log: (level, message) => {
+      const fn = ctx.logger && typeof ctx.logger[level] === 'function' ? ctx.logger[level] : undefined
+      if (fn) fn.call(ctx.logger, message)
+    },
+  })
 }
 
 export async function apply(ctx) {
