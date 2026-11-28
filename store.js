@@ -576,7 +576,7 @@ export function redeem(templateId, what = '', count = 1) {
   return { ok: true, used: used.map((c) => c.serial), remaining, say }
 }
 
-/** 作废：追加作废时间，文件保留。 */
+/** 作废：追加作废时间，文件保留。返回值带上票种/票号/原票备注，通知用得上。 */
 export function trash(serial) {
   const { valid } = listAll()
   const card = valid.find((c) => c.serial === serial || c.id === serial || c.short === serial)
@@ -588,7 +588,7 @@ export function trash(serial) {
     return { ok: false, error: `作废失败：${e && e.message ? e.message : e}` }
   }
   appendLedger({ at: new Date().toISOString(), event: 'trash', type: card.type, serials: [card.serial] })
-  return { ok: true, serial: card.serial }
+  return { ok: true, serial: card.serial, short: card.short, type: card.type, note: card.note || '' }
 }
 
 function appendLedger(entry) {

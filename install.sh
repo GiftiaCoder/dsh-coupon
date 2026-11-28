@@ -28,7 +28,7 @@ if [ ! -f "$PKG.bak-dsh-coupon" ]; then
   echo "已备份：$PKG.bak-dsh-coupon"
 fi
 
-for f in index.js routes.mjs store.js hostdeps.mjs client.js package.json cordis.patch.yml README.md LICENSE; do
+for f in index.js routes.mjs notify.mjs store.js hostdeps.mjs client.js package.json cordis.patch.yml README.md LICENSE; do
   [ -f "$SRC/$f" ] && cp -f "$SRC/$f" "$DEST/$f"
 done
 mkdir -p "$DEST/assets" "$DEST/defaults/templates"
@@ -59,6 +59,7 @@ NODE
 
 node --check "$DEST/index.js"
 node --check "$DEST/routes.mjs"
+node --check "$DEST/notify.mjs"
 node --check "$DEST/client.js"
 node --check "$DEST/store.js"
 

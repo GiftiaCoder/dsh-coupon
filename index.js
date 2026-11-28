@@ -16,8 +16,12 @@
  * Web 面板：GET /api/wallet/state、POST /api/wallet/action（issue / trash / fund）
  *   注：面板不提供「兑换」——账户余额是 agent 的，只有 wallet_exchange 工具能动它。
  *   路由本体在 routes.mjs（每条 handler 都过宿主的 connection 访问检查）。
+ *
+ * 通知：老板在面板上签票/签发鲸圆券/作废票据之后，往「最近有真人打字的活跃会话」
+ *   递一条 notice 消息（notify.mjs），agent 不用事后 wallet_list 才后知后觉。
  */
 import { loadHostDeps } from './hostdeps.mjs'
+import { notifyWalletAction } from './notify.mjs'
 import { installWalletRoutes } from './routes.mjs'
 import {
   CURRENCY_ID,
@@ -268,17 +272,32 @@ function walletToolDefinitions(agent, services) {
 }
 
 /**
+ * 面板动作的通知：老板在面板上签票/充值/作废之后，往「最近有真人打字的活跃会话」
+ * 递一条 notice 形态的消息（见 notify.mjs）。没活人会话就静默跳过。
+ */
+function installNotifier(ctx, log) {
+  return (action, data) => {
+    const result = notifyWalletAction({
+      agents: ctx.get('agents', false),
+      createUserMessage: hostDeps.createUserMessage,
+      log,
+      action,
+      data,
+    })
+    if (!result.ok) log('info', `dsh-coupon: wallet notice skipped (${result.reason}).`)
+  }
+}
+
+/**
  * 挂面板路由：Web 宿主装（每条 handler 自带 connection 访问检查，见 routes.mjs），
  * 没有 webServer 的宿主（headless / CLI）什么都不装，工具照常可用。
  */
-function installRoutes(ctx) {
+function installRoutes(ctx, log) {
   return installWalletRoutes({
     webserver: ctx.get('webServer', false),
     connection: ctx.get('connection', false),
-    log: (level, message) => {
-      const fn = ctx.logger && typeof ctx.logger[level] === 'function' ? ctx.logger[level] : undefined
-      if (fn) fn.call(ctx.logger, message)
-    },
+    log,
+    notify: installNotifier(ctx, log),
   })
 }
 
@@ -288,6 +307,7 @@ export async function apply(ctx) {
     if (fn) fn.call(ctx.logger, message)
   }
   log('info', `dsh-coupon: wallet dir = ${walletDir()}`)
+  for (const note of hostDeps.notes) log('info', `dsh-coupon: ${note}`)
 
   const registerOne = (agent) => {
     return agent.ctx.effect(() => {
@@ -306,7 +326,7 @@ export async function apply(ctx) {
   for (const existing of ctx.agents.roots()) registerOne(existing)
 
   const disposeRoutes = ctx.effect(() => {
-    const dispose = installRoutes(ctx)
+    const dispose = installRoutes(ctx, log)
     return () => {
       if (dispose) dispose()
     }

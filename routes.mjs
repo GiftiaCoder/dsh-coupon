@@ -11,6 +11,9 @@
  *
  * 宿主没给 `connection`（老版本或非 Web composition）时，`installWalletRoutes` 选择
  * **fail closed**：一条路由都不装，面板自己消失，既不冒风险也不假装安全。
+ *
+ * 签发 / 签发鲸圆券 / 作废成功之后，本文件只负责把「发生了什么」交给 `hooks.notify`
+ * （真正的投递在 notify.mjs）；通知失败只记日志，绝不把这次操作判成失败。
  */
 import fs from 'node:fs'
 
@@ -66,9 +69,23 @@ export function rejectUnadmitted(connection, req, res) {
   return true
 }
 
-/** 票夹面板的三条路由；每个 handler 第一句都是访问检查。 */
-export function walletRouteHandlers(connection) {
+/**
+ * 票夹面板的三条路由；每个 handler 第一句都是访问检查。
+ * @param {object} connection 宿主的 connection 服务（必须带 requestRejection）
+ * @param {{notify?:Function, log?:Function}} [hooks] notify(action, data) 在动作成功后调一次；
+ *   它自己出错只记日志，不影响 HTTP 结果。
+ */
+export function walletRouteHandlers(connection, hooks = {}) {
   const denied = (req, res) => rejectUnadmitted(connection, req, res)
+  const log = typeof hooks.log === 'function' ? hooks.log : null
+  const announce = (action, data) => {
+    if (typeof hooks.notify !== 'function') return
+    try {
+      hooks.notify(action, data)
+    } catch (e) {
+      log?.('warn', `dsh-coupon: wallet notice failed: ${e && e.message ? e.message : e}`)
+    }
+  }
 
   return [
     // 票样图片：面板里「账户」那一栏用；文件缺失时返回 404，不影响其它功能。
@@ -149,6 +166,21 @@ export function walletRouteHandlers(connection) {
             } else {
               result = { ok: false, error: `unknown action: ${action}` }
             }
+            if (result.ok) {
+              // 通知是附赠动作：签票/充值/作废已经落盘了，通知失败不能把这次操作判成失败。
+              if (action === 'issue') {
+                announce('issue', {
+                  type: body['type'],
+                  count: result.cards.length,
+                  note: body['note'],
+                  serials: result.cards.map((c) => c.short),
+                })
+              } else if (action === 'trash') {
+                announce('trash', { type: result.type, note: result.note, serials: [result.short || result.serial] })
+              } else if (action === 'fund') {
+                announce('fund', { amount: body['amount'], note: body['note'], balance: result.balance })
+              }
+            }
             sendJson(res, result.ok ? 200 : 400, result.ok ? snapshot() : result)
           })
           .catch((e) => sendJson(res, 400, { ok: false, error: e && e.message ? e.message : String(e) }))
@@ -161,9 +193,10 @@ export function walletRouteHandlers(connection) {
  * 把三条路由挂到宿主 `webServer` 上。
  * - 没有 `webServer`（headless / CLI 宿主）：不装路由，工具照常可用。
  * - 没有可用的 `connection`：不装路由（fail closed），并留一条 warn。
+ * @param {{webserver:object, connection:object, log?:Function, notify?:Function}} options
  * @returns 撤销函数，或 undefined（什么都没装）。
  */
-export function installWalletRoutes({ webserver, connection, log }) {
+export function installWalletRoutes({ webserver, connection, log, notify }) {
   if (!webserver) {
     log?.('info', 'dsh-coupon: no webserver composed; wallet panel routes not installed.')
     return undefined
@@ -176,7 +209,7 @@ export function installWalletRoutes({ webserver, connection, log }) {
     )
     return undefined
   }
-  const disposers = walletRouteHandlers(connection).map((route) => webserver.register(route))
+  const disposers = walletRouteHandlers(connection, { notify, log }).map((route) => webserver.register(route))
   return () => {
     for (const d of disposers) d()
   }

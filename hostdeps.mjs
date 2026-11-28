@@ -106,7 +106,24 @@ function localDefineTool(options) {
   return options
 }
 
-/** @returns {Promise<{defineTool:Function, notes:string[]}>} */
+/**
+ * `@deepseek-ai/dsh-llm` 的 `createUserMessage`：票夹通知要用它造消息对象。
+ * 拿不到就返回 null —— 通知是附赠功能，不能因为它让整条插件不激活。
+ * @returns {Promise<Function|null>}
+ */
+async function loadCreateUserMessage() {
+  let mod = await fromHostTree('dsh-llm')
+  if (!mod) {
+    try {
+      mod = await import('@deepseek-ai/dsh-llm')
+    } catch {
+      mod = null
+    }
+  }
+  return typeof mod?.createUserMessage === 'function' ? mod.createUserMessage : null
+}
+
+/** @returns {Promise<{defineTool:Function, createUserMessage:Function|null, notes:string[]}>} */
 export async function loadHostDeps() {
   const notes = []
   const log = (m) => notes.push(m)
@@ -120,5 +137,7 @@ export async function loadHostDeps() {
       mod = null
     }
   }
-  return { defineTool: mod?.defineTool || localDefineTool, notes }
+  const createUserMessage = await loadCreateUserMessage()
+  if (!createUserMessage) log('dsh-llm：宿主树里没有 createUserMessage，票夹通知会静默跳过')
+  return { defineTool: mod?.defineTool || localDefineTool, createUserMessage, notes }
 }

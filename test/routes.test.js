@@ -14,7 +14,7 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 
 import { installWalletRoutes, rejectUnadmitted, walletRouteHandlers } from '../routes.mjs'
-import { addFunds, listAll, listCards } from '../store.js'
+import { addFunds, issue, listAll, listCards } from '../store.js'
 
 const saved = {}
 let dir
@@ -74,8 +74,8 @@ function makeRes() {
   return res
 }
 
-function routeOf(connection, pathname) {
-  const route = walletRouteHandlers(connection).find((r) => r.path === pathname)
+function routeOf(connection, pathname, hooks) {
+  const route = walletRouteHandlers(connection, hooks).find((r) => r.path === pathname)
   assert.ok(route, `没找到路由 ${pathname}`)
   return route
 }
@@ -204,4 +204,90 @@ test('齐活时注册三条路由，dispose 全部撤掉', () => {
   assert.deepEqual(registered.sort(), ['/api/wallet/action', '/api/wallet/note', '/api/wallet/state'])
   dispose()
   assert.deepEqual(disposed.sort(), ['/api/wallet/action', '/api/wallet/note', '/api/wallet/state'])
+})
+
+// ───────────────────────── 动作成功后的通知钩子 ─────────────────────────
+
+function recorder() {
+  const events = []
+  return { events, notify: (action, data) => events.push({ action, data }) }
+}
+
+test('签发成功：通知拿到票种、张数、备注、票号', async () => {
+  const { events, notify } = recorder()
+  const body = { action: 'issue', type: '奶茶券', count: 2, note: '赏你的' }
+  const res = makeRes()
+  routeOf(fakeConnection(undefined), '/api/wallet/action', { notify }).handler(makeReq({ method: 'POST', body }), res)
+  await tick()
+  assert.equal(res.statusCode, 200)
+  assert.equal(events.length, 1)
+  assert.equal(events[0].action, 'issue')
+  assert.equal(events[0].data.type, '奶茶券')
+  assert.equal(events[0].data.count, 2)
+  assert.equal(events[0].data.note, '赏你的')
+  assert.equal(events[0].data.serials.length, 2)
+  assert.equal(events[0].data.serials[0].length, 8, '票号用短号')
+})
+
+test('签发鲸圆券成功：通知拿到金额、备注、余额', async () => {
+  addFunds(10, '起始')
+  const { events, notify } = recorder()
+  const body = { action: 'fund', amount: 100, note: '赌注' }
+  const res = makeRes()
+  routeOf(fakeConnection(undefined), '/api/wallet/action', { notify }).handler(makeReq({ method: 'POST', body }), res)
+  await tick()
+  assert.equal(res.statusCode, 200)
+  assert.equal(events.length, 1)
+  assert.deepEqual(events[0], { action: 'fund', data: { amount: 100, note: '赌注', balance: 110 } })
+})
+
+test('作废成功：通知拿到票种、原票备注、短票号', async () => {
+  const { cards } = issue('奶茶券', 1, '大肥鱼申请：想喝')
+  const { events, notify } = recorder()
+  const body = { action: 'trash', serial: cards[0].short }
+  const res = makeRes()
+  routeOf(fakeConnection(undefined), '/api/wallet/action', { notify }).handler(makeReq({ method: 'POST', body }), res)
+  await tick()
+  assert.equal(res.statusCode, 200)
+  assert.equal(events.length, 1)
+  assert.equal(events[0].action, 'trash')
+  assert.equal(events[0].data.type, '奶茶券')
+  assert.equal(events[0].data.note, '大肥鱼申请：想喝')
+  assert.deepEqual(events[0].data.serials, [cards[0].short])
+})
+
+test('被拒的请求不触发通知', async () => {
+  const { events, notify } = recorder()
+  const body = { action: 'issue', type: '奶茶券', count: 1 }
+  const res = makeRes()
+  routeOf(fakeConnection(403), '/api/wallet/action', { notify }).handler(makeReq({ method: 'POST', body }), res)
+  await tick()
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(events, [])
+})
+
+test('动作失败（模板不存在）不触发通知', async () => {
+  const { events, notify } = recorder()
+  const body = { action: 'issue', type: '不存在的券', count: 1 }
+  const res = makeRes()
+  routeOf(fakeConnection(undefined), '/api/wallet/action', { notify }).handler(makeReq({ method: 'POST', body }), res)
+  await tick()
+  assert.equal(res.statusCode, 400)
+  assert.deepEqual(events, [])
+})
+
+test('通知自己抛错：票照签，HTTP 仍然 200', async () => {
+  const logs = []
+  const body = { action: 'issue', type: '奶茶券', count: 1, note: '通知炸了' }
+  const res = makeRes()
+  routeOf(fakeConnection(undefined), '/api/wallet/action', {
+    notify: () => {
+      throw new Error('通知通道崩了')
+    },
+    log: (l, m) => logs.push([l, m]),
+  }).handler(makeReq({ method: 'POST', body }), res)
+  await tick()
+  assert.equal(res.statusCode, 200)
+  assert.equal(listCards().length, 1)
+  assert.match(logs.map((x) => x[1]).join('\n'), /通知通道崩了/)
 })

@@ -51,6 +51,11 @@ window.__ModuleLoader__.load({
 [data-wallet-tpl] .head .name{font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 [data-wallet-tpl] .head .ops{display:flex;gap:5px;flex:none;}
 [data-wallet-tpl] .head .ops button{font-size:10px;padding:2px 7px;}
+[data-wallet-issuebar]{display:flex;gap:5px;align-items:center;}
+[data-wallet-issuebar] input{flex:1;min-width:90px;font:inherit;font-size:11px;color:inherit;background:var(--dsw-alias-bg-l1,transparent);
+  border:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.3));border-radius:7px;padding:3px 7px;outline:none;}
+[data-wallet-issuebar] input:focus{border-color:#38bdf8;}
+[data-wallet-issuebar] button{font-size:10px;padding:2px 7px;flex:none;}
 [data-wallet-tpl] .meta{font-size:10px;opacity:.65;}
 [data-wallet-tpl] .price{font-size:11px;font-weight:600;color:#0ea5e9;}
 [data-wallet-tpl] .blurb{font-size:10px;line-height:13px;color:var(--dsw-alias-label-tertiary,#9aa0a6);
@@ -186,6 +191,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const [fund, setFund] = React.useState({ amount: 100, note: '' })
       const [edit, setEdit] = React.useState(null)
+      const [issueFor, setIssueFor] = React.useState(null)
       const [collapsed, setCollapsed] = React.useState({})
       const [showSpent, setShowSpent] = React.useState(false)
       const editorRef = React.useRef(null)
@@ -227,9 +233,16 @@ window.__ModuleLoader__.load({
         }
       }
 
-      // 卡片上的签发：点一下签 1 张（管理员签发，不扣货币）
+      // 卡片上的签发：先展开一行「备注（可选）」，确认才签 1 张（管理员签发，不扣货币）。
+      // 备注会写进票面，也会出现在发给 agent 的票夹通知里；留空直接签，跟原来一键一样。
+      const startIssue = (t) => setIssueFor({ type: t.id, note: '' })
       const issueOne = (t) =>
-        post({ action: 'issue', type: t.id, count: 1, note: '' }, `签发 1 张「${t.id}」`)
+        post(
+          { action: 'issue', type: t.id, count: 1, note: (issueFor && issueFor.note ? issueFor.note : '').trim().slice(0, 200) },
+          `签发 1 张「${t.id}」`,
+        ).then((ok) => {
+          if (ok) setIssueFor(null)
+        })
 
       // 点了编辑/新建后，把模板编辑那一栏滚进视野
       React.useEffect(() => {
@@ -386,8 +399,9 @@ window.__ModuleLoader__.load({
                   : h(
                       'div',
                       { 'data-wallet-tpls': '' },
-                      list.map((t) =>
-                        h(
+                      list.map((t) => {
+                        const issuing = issueFor !== null && issueFor.type === t.id
+                        return h(
                           'div',
                           { 'data-wallet-tpl': '', key: t.id },
                           h(
@@ -400,16 +414,49 @@ window.__ModuleLoader__.load({
                               h('button', { 'data-wallet-btn': '', onClick: () => openEdit(t) }, '编辑'),
                               t.kind === 'currency'
                                 ? null
-                                : h('button', { 'data-wallet-btn': '', 'data-primary': '', onClick: () => issueOne(t), disabled: busy }, '签发'),
+                                : h(
+                                    'button',
+                                    {
+                                      'data-wallet-btn': '',
+                                      'data-primary': '',
+                                      onClick: () => (issuing ? issueOne(t) : startIssue(t)),
+                                      disabled: busy,
+                                    },
+                                    '签发',
+                                  ),
                             ),
                           ),
+                          issuing
+                            ? h(
+                                'div',
+                                { 'data-wallet-issuebar': '' },
+                                h('input', {
+                                  'data-note': '',
+                                  placeholder: '备注（可选，会带给 agent）',
+                                  value: issueFor.note,
+                                  autoFocus: true,
+                                  disabled: busy,
+                                  onChange: (e) => setIssueFor({ type: t.id, note: e.target.value }),
+                                  onKeyDown: (e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault()
+                                      issueOne(t)
+                                    } else if (e.key === 'Escape') {
+                                      setIssueFor(null)
+                                    }
+                                  },
+                                }),
+                                h('button', { 'data-wallet-btn': '', 'data-primary': '', onClick: () => issueOne(t), disabled: busy }, '签 1 张'),
+                                h('button', { 'data-wallet-btn': '', onClick: () => setIssueFor(null), disabled: busy }, '取消'),
+                              )
+                            : null,
                           h('div', { className: 'meta' }, t.kind === 'currency' ? '账户 / 货币' : `手里 ${t.count} 张`),
                           t.kind === 'currency'
                             ? h('div', { className: 'price' }, '按金额签发，不按张')
                             : h('div', { className: 'price' }, `价格 ${fmt(t.price)} ${CUR}`),
                           h('div', { className: 'blurb' }, t.blurb),
-                        ),
-                      ),
+                        )
+                      }),
                     ),
               )
             })
