@@ -1,7 +1,7 @@
 /**
  * notify.mjs —— 票夹动作 → 聊天框通知
  *
- * 面板上的「签发票据 / 签发鲸圆券 / 作废票据」是老板亲手做的，agent 不该事后靠
+ * 面板上的「签发票据 / 签发鲸圆券 / 作废票据」是用户亲手做的，agent 不该事后靠
  * `wallet_list` 去猜。这里把成功的动作翻成一条 **notice 形态**的用户消息，递给
  * 「最近有真人打过字的活跃会话」：
  *   - notice 形态在 GUI 里是一枚可展开的通知行（不是用户气泡），摘要一句话；
@@ -43,13 +43,13 @@ export function buildNotice(action, data = {}) {
     const type = String(data.type ?? '').trim()
     const count = Math.max(1, Math.floor(Number(data.count) || 1))
     if (!type) return null
-    const lines = ['[dsh-coupon 票夹通知]', `老板刚签发给你 ${count} 张「${type}」。`]
+    const lines = ['[dsh-coupon 票夹通知]', `用户刚签发给你 ${count} 张「${type}」。`]
     if (note) lines.push(`备注：${note}`)
     if (serialLine) lines.push(serialLine)
     lines.push(REPLY_RULE)
     return {
       text: lines.join('\n'),
-      summary: boundSummary(`老板签发给你 ${count} 张「${type}」${note ? `：${note}` : ''}`),
+      summary: boundSummary(`用户签发给你 ${count} 张「${type}」${note ? `：${note}` : ''}`),
     }
   }
 
@@ -57,26 +57,26 @@ export function buildNotice(action, data = {}) {
     const amount = Math.floor(Number(data.amount) || 0)
     if (amount <= 0) return null
     const balance = Number(data.balance)
-    const lines = ['[dsh-coupon 票夹通知]', `老板刚给你的账户签发了 ${amount} 鲸圆券。`]
+    const lines = ['[dsh-coupon 票夹通知]', `用户刚给你的账户签发了 ${amount} 鲸圆券。`]
     if (note) lines.push(`备注：${note}`)
     if (Number.isFinite(balance)) lines.push(`账户余额：${balance} 鲸圆券`)
     lines.push(REPLY_RULE)
     return {
       text: lines.join('\n'),
-      summary: boundSummary(`老板给你账户签发 ${amount} 鲸圆券${note ? `：${note}` : ''}`),
+      summary: boundSummary(`用户给你账户签发 ${amount} 鲸圆券${note ? `：${note}` : ''}`),
     }
   }
 
   if (action === 'trash') {
     const type = String(data.type ?? '').trim()
     if (!type) return null
-    const lines = ['[dsh-coupon 票夹通知]', `老板刚作废了你手里 1 张「${type}」。`]
+    const lines = ['[dsh-coupon 票夹通知]', `用户刚作废了你手里 1 张「${type}」。`]
     if (serialLine) lines.push(serialLine)
     if (note) lines.push(`原票备注：${note}`)
     lines.push(REPLY_RULE)
     return {
       text: lines.join('\n'),
-      summary: boundSummary(`老板作废了你手里的 1 张「${type}」${note ? `：${note}` : ''}`),
+      summary: boundSummary(`用户作废了你手里的 1 张「${type}」${note ? `：${note}` : ''}`),
     }
   }
 

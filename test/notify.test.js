@@ -23,7 +23,7 @@ import {
 
 const T0 = 1795000000000
 
-function humanAt(epoch, text = '老板说话') {
+function humanAt(epoch, text = '用户说话') {
   return { type: 'user/message', seq: 0, time: epoch, data: { content: [{ type: 'text', text }], source: { kind: 'user' } } }
 }
 
@@ -53,18 +53,18 @@ function fakeCreateUserMessage(input) {
 
 test('buildNotice：签发带备注与票号', () => {
   const notice = buildNotice('issue', { type: '犯错卡', count: 2, note: '看你可怜', serials: ['aaaa1111', 'bbbb2222'] })
-  assert.match(notice.text, /老板刚签发给你 2 张「犯错卡」/)
+  assert.match(notice.text, /用户刚签发给你 2 张「犯错卡」/)
   assert.match(notice.text, /备注：看你可怜/)
   assert.match(notice.text, /票号：aaaa1111、bbbb2222/)
   assert.match(notice.text, /不是新任务/)
-  assert.equal(notice.summary, '老板签发给你 2 张「犯错卡」：看你可怜')
+  assert.equal(notice.summary, '用户签发给你 2 张「犯错卡」：看你可怜')
 })
 
 test('buildNotice：签发没有备注时不写备注行', () => {
   const notice = buildNotice('issue', { type: '奶茶券', count: 1 })
   assert.doesNotMatch(notice.text, /备注/)
   assert.doesNotMatch(notice.text, /票号/)
-  assert.equal(notice.summary, '老板签发给你 1 张「奶茶券」')
+  assert.equal(notice.summary, '用户签发给你 1 张「奶茶券」')
 })
 
 test('buildNotice：签发鲸圆券带金额、备注、余额', () => {
@@ -72,15 +72,15 @@ test('buildNotice：签发鲸圆券带金额、备注、余额', () => {
   assert.match(notice.text, /给你的账户签发了 100 鲸圆券/)
   assert.match(notice.text, /备注：赌注/)
   assert.match(notice.text, /账户余额：320 鲸圆券/)
-  assert.equal(notice.summary, '老板给你账户签发 100 鲸圆券：赌注')
+  assert.equal(notice.summary, '用户给你账户签发 100 鲸圆券：赌注')
 })
 
 test('buildNotice：作废带票种、票号和原票备注', () => {
   const notice = buildNotice('trash', { type: '犯错卡', note: '大肥鱼申请：糊弄过去', serials: ['abcd1234'] })
-  assert.match(notice.text, /老板刚作废了你手里 1 张「犯错卡」/)
+  assert.match(notice.text, /用户刚作废了你手里 1 张「犯错卡」/)
   assert.match(notice.text, /票号：abcd1234/)
   assert.match(notice.text, /原票备注：大肥鱼申请：糊弄过去/)
-  assert.equal(notice.summary, '老板作废了你手里的 1 张「犯错卡」：大肥鱼申请：糊弄过去')
+  assert.equal(notice.summary, '用户作废了你手里的 1 张「犯错卡」：大肥鱼申请：糊弄过去')
 })
 
 test('buildNotice：不认识的动作用 null，金额非法也 null', () => {
