@@ -43,13 +43,13 @@ export function buildNotice(action, data = {}) {
     const type = String(data.type ?? '').trim()
     const count = Math.max(1, Math.floor(Number(data.count) || 1))
     if (!type) return null
-    const lines = ['[dsh-coupon 票夹通知]', `老板刚签发了 ${count} 张「${type}」。`]
+    const lines = ['[dsh-coupon 票夹通知]', `老板刚签发给你 ${count} 张「${type}」。`]
     if (note) lines.push(`备注：${note}`)
     if (serialLine) lines.push(serialLine)
     lines.push(REPLY_RULE)
     return {
       text: lines.join('\n'),
-      summary: boundSummary(`老板签发了 ${count} 张「${type}」${note ? `：${note}` : ''}`),
+      summary: boundSummary(`老板签发给你 ${count} 张「${type}」${note ? `：${note}` : ''}`),
     }
   }
 
@@ -57,26 +57,26 @@ export function buildNotice(action, data = {}) {
     const amount = Math.floor(Number(data.amount) || 0)
     if (amount <= 0) return null
     const balance = Number(data.balance)
-    const lines = ['[dsh-coupon 票夹通知]', `老板刚给账户签发了 ${amount} 鲸圆券。`]
+    const lines = ['[dsh-coupon 票夹通知]', `老板刚给你的账户签发了 ${amount} 鲸圆券。`]
     if (note) lines.push(`备注：${note}`)
     if (Number.isFinite(balance)) lines.push(`账户余额：${balance} 鲸圆券`)
     lines.push(REPLY_RULE)
     return {
       text: lines.join('\n'),
-      summary: boundSummary(`老板签发 ${amount} 鲸圆券${note ? `：${note}` : ''}`),
+      summary: boundSummary(`老板给你账户签发 ${amount} 鲸圆券${note ? `：${note}` : ''}`),
     }
   }
 
   if (action === 'trash') {
     const type = String(data.type ?? '').trim()
     if (!type) return null
-    const lines = ['[dsh-coupon 票夹通知]', `老板刚作废了 1 张「${type}」。`]
+    const lines = ['[dsh-coupon 票夹通知]', `老板刚作废了你手里 1 张「${type}」。`]
     if (serialLine) lines.push(serialLine)
     if (note) lines.push(`原票备注：${note}`)
     lines.push(REPLY_RULE)
     return {
       text: lines.join('\n'),
-      summary: boundSummary(`老板作废 1 张「${type}」${note ? `：${note}` : ''}`),
+      summary: boundSummary(`老板作废了你手里的 1 张「${type}」${note ? `：${note}` : ''}`),
     }
   }
 
