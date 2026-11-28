@@ -291,14 +291,35 @@ function installNotifier(ctx, log) {
 /**
  * 挂面板路由：Web 宿主装（每条 handler 自带 connection 访问检查，见 routes.mjs），
  * 没有 webServer 的宿主（headless / CLI）什么都不装，工具照常可用。
+ *
+ * 这里多一步「等 connection」：它是浏览器侧包的宿主半边，注册顺序没有保证。
+ * 本插件先起、它后到时，`installWalletRoutes` 会 fail closed（一条路由都不装），
+ * 面板就凭空没了——所以拿不到 connection 时用 `ctx.inject(['connection'])` 挂个
+ * 迟到补装，服务一出现就把路由补上（`dsh-api-gateway` 也是这么等 connection 的）。
  */
 function installRoutes(ctx, log) {
-  return installWalletRoutes({
-    webserver: ctx.get('webServer', false),
-    connection: ctx.get('connection', false),
-    log,
-    notify: installNotifier(ctx, log),
+  const notify = installNotifier(ctx, log)
+  const mount = (scope) => {
+    const webserver = (scope && scope.webServer) || ctx.get('webServer', false)
+    const connection = (scope && scope.connection) || ctx.get('connection', false)
+    return installWalletRoutes({ webserver, connection, log, notify })
+  }
+
+  const immediate = mount(null)
+  if (immediate) return immediate
+  // 连 webServer 都没有：headless / CLI 宿主，等也没用。
+  if (!ctx.get('webServer', false)) return undefined
+
+  let deferred
+  ctx.inject(['connection'], (sub) => {
+    deferred = mount(sub)
+    return () => {
+      if (typeof deferred === 'function') deferred()
+    }
   })
+  return () => {
+    if (typeof deferred === 'function') deferred()
+  }
 }
 
 export async function apply(ctx) {
