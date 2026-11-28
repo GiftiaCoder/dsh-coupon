@@ -292,33 +292,32 @@ function installNotifier(ctx, log) {
  * 挂面板路由：Web 宿主装（每条 handler 自带 connection 访问检查，见 routes.mjs），
  * 没有 webServer 的宿主（headless / CLI）什么都不装，工具照常可用。
  *
- * 这里多一步「等 connection」：它是浏览器侧包的宿主半边，注册顺序没有保证。
- * 本插件先起、它后到时，`installWalletRoutes` 会 fail closed（一条路由都不装），
- * 面板就凭空没了——所以拿不到 connection 时用 `ctx.inject(['connection'])` 挂个
- * 迟到补装，服务一出现就把路由补上（`dsh-api-gateway` 也是这么等 connection 的）。
+ * 用 `ctx.inject(['webServer', 'connection'], …)` 而不是 `ctx.get(...)` 直接读：
+ *   ① 注册顺序没有保证——本插件可能先于 connection（浏览器侧包的宿主半边）起来，
+ *      直接读会拿到 undefined 然后 fail closed，面板就凭空没了；
+ *   ② cordis 不允许访问没 inject 的服务属性（会抛
+ *      `cannot get property "webServer" without inject`）；
+ *   ③ 服务重启时 inject 回调会重跑，路由跟着重新挂上，不会留下一把指向旧注册表的 disposer。
+ * `dsh-api-gateway` 挂 WebSocket 路由用的也是这个写法。
  */
 function installRoutes(ctx, log) {
   const notify = installNotifier(ctx, log)
-  const mount = (scope) => {
-    const webserver = (scope && scope.webServer) || ctx.get('webServer', false)
-    const connection = (scope && scope.connection) || ctx.get('connection', false)
-    return installWalletRoutes({ webserver, connection, log, notify })
-  }
+  let disposeRoutes
 
-  const immediate = mount(null)
-  if (immediate) return immediate
-  // 连 webServer 都没有：headless / CLI 宿主，等也没用。
-  if (!ctx.get('webServer', false)) return undefined
-
-  let deferred
-  ctx.inject(['connection'], (sub) => {
-    deferred = mount(sub)
+  ctx.inject(['webServer', 'connection'], (webCtx) => {
+    disposeRoutes = installWalletRoutes({
+      webserver: webCtx.webServer,
+      connection: webCtx.connection,
+      log,
+      notify,
+    })
     return () => {
-      if (typeof deferred === 'function') deferred()
+      if (typeof disposeRoutes === 'function') disposeRoutes()
     }
   })
+
   return () => {
-    if (typeof deferred === 'function') deferred()
+    if (typeof disposeRoutes === 'function') disposeRoutes()
   }
 }
 

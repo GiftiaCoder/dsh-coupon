@@ -175,7 +175,7 @@ currency: 鲸圆券
 - **面板接口走宿主鉴权，不是裸口子**。三条路由（`/api/wallet/state`、`/api/wallet/action`、`/api/wallet/note`）动手之前都先调宿主的 `connection.requestRejection(req)`，和 DSH 自带 Web 插件（如 `open-in-app`）同一套围栏：Host / Origin 不匹配的一律 403，没有 DSH 登录 cookie 的一律 401，被拒的请求连票据状态都不碰（签不出票、动不了余额）。拿不到这个服务的宿主机（老版本或非 Web composition）**一条路由都不装**（fail closed）——面板不出现，工具照常可用。
 - **反向代理要把域名登记进信任列表**。用域名反代 DSH Web 时，把域名加进 `dsh web --trusted-host`（没有的话，宿主自己的 `/api` 也会一起 403）。不在信任列表里的 Host 打开面板，会看到「请求被拒绝：来源不可信」。
 - `POST /api/wallet/action` 仍然是管理员级能力（能签票、能充值），上面的围栏只是把它绑回「已经登录这台 DSH 的人」。
-- **`connection` 服务晚到也不丢面板**：宿主注册顺序没有保证，本插件先起、`connection` 后到时，路由会等这个服务出现再挂一次，不会因为顺序把面板弄丢（拿不到 `connection` 时依然 fail closed，不裸奔）。
+- **`connection` 服务晚到也不丢面板**：宿主注册顺序没有保证，本插件先起、`connection` 后到时，`ctx.inject(['webServer','connection'])` 会等两个服务都就位再把路由挂上（cordis 也不允许访问没 inject 的服务属性）；服务重启时回调重跑、路由跟着重挂。拿不到 `connection` 时依然 fail closed，不裸奔。
 - 账户文件和票面是明文 markdown；票夹目录的权限按普通用户数据处理。
 
 ## 开发
